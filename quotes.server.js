@@ -1,4 +1,4 @@
-const quotes = [
+module.exports = [
   {
     "id": 1,
     "author": "Captain America",
