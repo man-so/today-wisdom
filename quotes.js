@@ -1,0 +1,1 @@
+const quotes = [...quotesPart1];
