@@ -1,4 +1,5 @@
 const RECENT_LIMIT = 10;
+const LANGUAGES = ['ko', 'en', 'ja'];
 
 const state = {
   currentQuote: null,
@@ -6,24 +7,89 @@ const state = {
   favorites: safeJson('favoriteQuotes', []),
   recentIds: safeJson('recentQuoteIds', []),
   journal: safeJson('quoteJournal', []),
-  theme: localStorage.getItem('theme') || 'light'
+  theme: localStorage.getItem('theme') || 'light',
+  language: LANGUAGES.includes(localStorage.getItem('language')) ? localStorage.getItem('language') : 'ko'
 };
 
 const $ = (id) => document.getElementById(id);
 const quoteCard = $('quoteCard');
 
 const categoryVisuals = {
-  '희망': 'hope.svg', '회복': 'hope.svg', '용기': 'courage.svg', '도전': 'courage.svg',
-  '사랑': 'love.svg', '관계': 'love.svg', '성장': 'growth.svg', '자신감': 'growth.svg',
-  '불안': 'calm.svg', '위로': 'calm.svg', '평온': 'calm.svg', '삶': 'life.svg',
-  '선택': 'life.svg', '우정': 'friendship.svg', '협력': 'friendship.svg', '성공': 'success.svg',
-  '목표': 'success.svg', '지혜': 'wisdom.svg', '철학': 'wisdom.svg', '변화': 'change.svg',
-  '재도전': 'change.svg', '가족': 'family.svg', '행복': 'joy.svg', '동기': 'joy.svg'
+  hope: 'hope.svg',
+  recovery: 'hope.svg',
+  courage: 'courage.svg',
+  challenge: 'courage.svg',
+  love: 'love.svg',
+  relationship: 'love.svg',
+  growth: 'growth.svg',
+  confidence: 'growth.svg',
+  anxiety: 'calm.svg',
+  comfort: 'calm.svg',
+  calm: 'calm.svg',
+  life: 'life.svg',
+  choice: 'life.svg',
+  friendship: 'friendship.svg',
+  collaboration: 'friendship.svg',
+  teamwork: 'friendship.svg',
+  success: 'success.svg',
+  goal: 'success.svg',
+  wisdom: 'wisdom.svg',
+  philosophy: 'wisdom.svg',
+  change: 'change.svg',
+  second_chance: 'change.svg',
+  family: 'family.svg',
+  happiness: 'joy.svg',
+  motivation: 'joy.svg',
+  responsibility: 'wisdom.svg',
+  leadership: 'success.svg',
+  identity: 'growth.svg',
+  balance: 'calm.svg'
 };
 
 function safeJson(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); }
   catch { return fallback; }
+}
+
+function t(key) {
+  return i18n.ui[state.language]?.[key] || i18n.ui.en[key] || i18n.ui.ko[key] || key;
+}
+
+function getLocalizedValue(value, lang = state.language) {
+  if (typeof value === 'string') return value;
+  if (!value || typeof value !== 'object') return '';
+  return value[lang] || value.en || value.ko || '';
+}
+
+function getDisplayName(type, key) {
+  const dict = type === 'emotion' ? i18n.emotionNames : i18n.categoryNames;
+  return getLocalizedValue(dict[key], state.language) || key;
+}
+
+function getQuoteAuthorName(quote, lang = state.language) {
+  const author = getLocalizedValue(quote.author, lang);
+  return author
+    .replace(/^Inspired by\s+/i, '')
+    .replace(/\s*에서 영감을 받은 문구$/u, '')
+    .replace(/\s*에 착상한 문구$/u, '')
+    .replace(/\s*의 이야기$/u, '')
+    .replace(/\s*に着想を得た言葉$/u, '')
+    .replace(/\s*に着想した言葉$/u, '')
+    .trim();
+}
+
+function formatMoodHint(moodName) {
+  return state.language === 'en' ? `${moodName} ${t('currentMood')}` : `${moodName}${t('currentMood')}`;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[char]);
 }
 
 function getVisualForQuote(quote) {
@@ -34,18 +100,41 @@ function getVisualForQuote(quote) {
 
 function initApp() {
   applyTheme();
-  setGreeting();
+  applyLanguage();
   renderCategories();
   renderFavorites();
   renderJournal();
   const start = getRandomQuote();
-  renderQuote(start, '오늘의 추천', start.meaning, start.action);
+  renderQuote(start, t('defaultBadge'), getLocalizedValue(start.meaning), getLocalizedValue(start.action));
   bindEvents();
 }
 
 function setGreeting() {
   const hour = new Date().getHours();
-  $('greeting').textContent = hour < 12 ? 'good morning.' : hour < 18 ? 'good afternoon.' : 'good evening.';
+  const greetings = {
+    ko: hour < 12 ? '좋은 아침이에요.' : hour < 18 ? '좋은 오후예요.' : '좋은 저녁이에요.',
+    en: hour < 12 ? 'good morning.' : hour < 18 ? 'good afternoon.' : 'good evening.',
+    ja: hour < 12 ? 'おはようございます。' : hour < 18 ? 'こんにちは。' : 'こんばんは。'
+  };
+  $('greeting').textContent = greetings[state.language] || greetings.en;
+}
+
+function applyLanguage() {
+  document.documentElement.lang = state.language;
+  document.title = t('title');
+  $('languageSelect').value = state.language;
+  document.querySelector('.brand small').textContent = t('brandSub');
+  document.querySelectorAll('.topnav button').forEach((button, index) => {
+    button.textContent = [t('recommend'), t('journal'), t('saved')][index];
+  });
+  document.querySelectorAll('[data-i18n]').forEach((node) => {
+    node.textContent = t(node.dataset.i18n);
+  });
+  $('aiInput').placeholder = t('aiPlaceholder');
+  $('journalNote').placeholder = t('journalPlaceholder');
+  $('moodHint').textContent = state.selectedMood ? formatMoodHint(getDisplayName('emotion', state.selectedMood)) : t('moodHint');
+  $('detailToggle').textContent = $('detailToggle').getAttribute('aria-expanded') === 'true' ? t('collapse') : t('expand');
+  setGreeting();
 }
 
 function addRecent(id) {
@@ -53,21 +142,19 @@ function addRecent(id) {
   localStorage.setItem('recentQuoteIds', JSON.stringify(state.recentIds));
 }
 
-function renderQuote(quote, badge = '추천 이유', reason = quote.meaning, action = quote.action) {
+function renderQuote(quote, badge = t('defaultBadge'), reason = getLocalizedValue(quote.meaning), action = getLocalizedValue(quote.action)) {
   state.currentQuote = quote;
   addRecent(quote.id);
   quoteCard.classList.add('swap');
   setTimeout(() => {
-    $('quoteText').textContent = `“${quote.quote}”`;
-    $('quoteTranslation').textContent = quote.translation;
-    $('quoteAuthor').textContent = quote.author;
-    $('quoteSource').textContent = quote.kind === 'paraphrase' ? `Inspired by · ${quote.source}` : (quote.source || 'Quote');
-    $('contentType').textContent = quote.kind === 'paraphrase' ? 'MOVIE-INSPIRED' : 'QUOTE';
-    $('contentType').classList.toggle('inspired', quote.kind === 'paraphrase');
-    $('quoteImage').src = getVisualForQuote(quote);
-    $('reasonText').textContent = reason || quote.meaning;
-    $('actionText').textContent = action || quote.action;
+    const quoteText = getLocalizedValue(quote.quote);
+    const author = getQuoteAuthorName(quote);
+    $('quoteText').textContent = `“${quoteText}”`;
+    $('quoteAuthor').textContent = `-${author}-`;
+    $('reasonText').textContent = reason || getLocalizedValue(quote.meaning) || t('defaultReason');
+    $('actionText').textContent = action || getLocalizedValue(quote.action) || t('defaultAction');
     $('emotionBadge').textContent = badge;
+    document.querySelector('.action-box strong').textContent = t('actionTitle');
     updateFavoriteButton();
     quoteCard.classList.remove('swap');
   }, 150);
@@ -84,20 +171,22 @@ function recommendByMood(mood) {
   state.selectedMood = mood;
   localStorage.setItem('lastMood', mood);
   document.querySelectorAll('.mood').forEach(btn => btn.classList.toggle('active', btn.dataset.mood === mood));
-  $('moodHint').textContent = `${mood}에 맞는 명언`;
-  const pool = quotes.filter(q => q.emotions.includes(mood));
+  const moodName = getDisplayName('emotion', mood);
+  $('moodHint').textContent = formatMoodHint(moodName);
+  const pool = quotes.filter(q => (q.emotions || []).includes(mood));
   const quote = getRandomQuote(pool.length ? pool : quotes);
-  renderQuote(quote, mood, quote.meaning, quote.action);
+  renderQuote(quote, moodName, getLocalizedValue(quote.meaning), getLocalizedValue(quote.action));
 }
 
 function renderCategories() {
-  const categories = [...new Set(quotes.flatMap(q => q.categories))].slice(0, 8);
+  const categories = [...new Set(quotes.flatMap(q => q.categories || []))].slice(0, 8);
   $('categoryGrid').innerHTML = categories.map(cat => {
     const icon = categoryVisuals[cat] || 'life.svg';
-    return `<button class="category-btn" data-category="${cat}">
+    const name = getDisplayName('category', cat);
+    return `<button class="category-btn" data-category="${escapeHtml(cat)}">
       <img src="assets/images/${icon}" alt="" aria-hidden="true" />
-      <strong>${cat}</strong>
-      <span>${quotes.filter(q => q.categories.includes(cat)).length} quotes</span>
+      <strong>${escapeHtml(name)}</strong>
+      <span>${quotes.filter(q => (q.categories || []).includes(cat)).length} ${escapeHtml(t('quotes'))}</span>
     </button>`;
   }).join('');
 }
@@ -117,22 +206,22 @@ function updateFavoriteButton() {
 
 function renderFavorites() {
   const items = quotes.filter(q => state.favorites.includes(q.id));
-  $('savedCount').textContent = `${items.length} Quotes`;
+  $('savedCount').textContent = `${items.length} ${t('quotes')}`;
   $('savedList').innerHTML = items.length ? items.map(q => `
     <article class="saved-item" data-id="${q.id}">
-      <strong>“${q.quote}”</strong>
-      <small>${q.author}${q.source ? ` · ${q.source}` : ''}</small>
-    </article>`).join('') : '<p class="body-text">아직 저장한 명언이 없어요.</p>';
+      <strong>“${escapeHtml(getLocalizedValue(q.quote))}”</strong>
+      <small>-${escapeHtml(getQuoteAuthorName(q))}-</small>
+    </article>`).join('') : `<p class="body-text">${escapeHtml(t('noSaved'))}</p>`;
 }
 
 async function shareCurrentQuote() {
   if (!state.currentQuote) return;
-  const text = `“${state.currentQuote.quote}” — ${state.currentQuote.author}`;
+  const text = `“${getLocalizedValue(state.currentQuote.quote)}” -${getQuoteAuthorName(state.currentQuote)}-`;
   try {
-    if (navigator.share) await navigator.share({ title: '오늘의 명언', text });
+    if (navigator.share) await navigator.share({ title: t('title'), text });
     else {
       await navigator.clipboard.writeText(text);
-      $('aiStatus').textContent = '명언을 클립보드에 복사했어요.';
+      $('aiStatus').textContent = t('quoteCopied');
     }
   } catch (_) {}
 }
@@ -146,24 +235,25 @@ function toggleTheme() {
 
 async function aiRecommend() {
   const input = $('aiInput').value.trim();
-  if (!input) { $('aiStatus').textContent = '상황을 한 줄이라도 입력해주세요.'; return; }
+  if (!input) { $('aiStatus').textContent = t('inputRequired'); return; }
   $('aiRecommendBtn').disabled = true;
-  $('aiStatus').textContent = 'Gemma가 감정과 상황을 분석하고 있어요...';
+  $('aiStatus').textContent = t('analyzing');
   try {
     const res = await fetch('/api/recommend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: input, recentIds: state.recentIds })
+      body: JSON.stringify({ text: input, recentIds: state.recentIds, language: state.language })
     });
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     const quote = quotes.find(q => q.id === data.quoteId) || getRandomQuote();
-    renderQuote(quote, data.emotion || data.theme || 'AI 추천', data.reason || quote.meaning, data.action || quote.action);
-    $('aiStatus').textContent = `AI 분석 · ${data.emotion || '감정'} · ${data.situation || '상황'} · ${data.theme || '추천'}`;
-    $('analysisChips').innerHTML = [data.emotion, data.situation, data.theme].filter(Boolean).map(x => `<span>${x}</span>`).join('');
+    const badge = data.emotionLabel || getDisplayName('emotion', data.emotion) || data.theme || t('defaultBadge');
+    renderQuote(quote, badge, data.reason || getLocalizedValue(quote.meaning), data.action || getLocalizedValue(quote.action));
+    $('aiStatus').textContent = `${t('aiAnalysis')} · ${[data.emotionLabel || data.emotion, data.situation, data.theme].filter(Boolean).join(' · ')}`;
+    $('analysisChips').innerHTML = [data.emotionLabel || data.emotion, data.situation, data.theme].filter(Boolean).map(x => `<span>${escapeHtml(x)}</span>`).join('');
   } catch (err) {
     console.error(err);
-    $('aiStatus').textContent = 'AI 연결 실패. Ollama와 서버 실행 상태를 확인해주세요.';
+    $('aiStatus').textContent = t('aiFailed');
   } finally {
     $('aiRecommendBtn').disabled = false;
   }
@@ -172,7 +262,7 @@ async function aiRecommend() {
 function saveJournal() {
   if (!state.currentQuote) return;
   const note = $('journalNote').value.trim();
-  const mood = state.selectedMood || '기록';
+  const mood = state.selectedMood || 'journal';
   const entry = {
     id: Date.now(),
     date: new Date().toISOString(),
@@ -183,22 +273,34 @@ function saveJournal() {
   state.journal = [entry, ...state.journal].slice(0, 30);
   localStorage.setItem('quoteJournal', JSON.stringify(state.journal));
   $('journalNote').value = '';
-  $('journalStatus').textContent = '오늘의 기록을 저장했어요.';
+  $('journalStatus').textContent = t('savedJournal');
   renderJournal();
 }
 
 function renderJournal() {
   const recent = state.journal.slice(0, 7);
-  $('journalCount').textContent = `${state.journal.length} records`;
+  $('journalCount').textContent = `${state.journal.length} ${t('records')}`;
   $('journalList').innerHTML = recent.length ? recent.map(entry => {
     const q = quotes.find(x => x.id === entry.quoteId);
     const d = new Date(entry.date);
+    const mood = i18n.emotionNames[entry.mood] ? getDisplayName('emotion', entry.mood) : t('journal');
     return `<article class="journal-item">
-      <div><strong>${entry.mood}</strong><span>${d.toLocaleDateString('ko-KR')}</span></div>
-      <p>${q ? `“${q.translation || q.quote}”` : '저장된 명언'}</p>
-      ${entry.note ? `<small>${entry.note}</small>` : ''}
+      <div><strong>${escapeHtml(mood)}</strong><span>${d.toLocaleDateString(state.language === 'ja' ? 'ja-JP' : state.language === 'en' ? 'en-US' : 'ko-KR')}</span></div>
+      <p>${q ? `“${escapeHtml(getLocalizedValue(q.quote))}”` : escapeHtml(t('savedTitle'))}</p>
+      ${entry.note ? `<small>${escapeHtml(entry.note)}</small>` : ''}
     </article>`;
-  }).join('') : '<p class="body-text">오늘의 기분과 한 줄 메모를 남겨보세요.</p>';
+  }).join('') : `<p class="body-text">${escapeHtml(t('noJournal'))}</p>`;
+}
+
+function changeLanguage(language) {
+  if (!LANGUAGES.includes(language)) return;
+  state.language = language;
+  localStorage.setItem('language', language);
+  applyLanguage();
+  renderCategories();
+  renderFavorites();
+  renderJournal();
+  if (state.currentQuote) renderQuote(state.currentQuote, t('defaultBadge'), getLocalizedValue(state.currentQuote.meaning), getLocalizedValue(state.currentQuote.action));
 }
 
 function bindEvents() {
@@ -206,29 +308,30 @@ function bindEvents() {
   $('favoriteBtn').addEventListener('click', toggleFavorite);
   $('shareBtn').addEventListener('click', shareCurrentQuote);
   $('themeToggle').addEventListener('click', toggleTheme);
+  $('languageSelect').addEventListener('change', (event) => changeLanguage(event.target.value));
   $('aiRecommendBtn').addEventListener('click', aiRecommend);
   $('saveJournalBtn').addEventListener('click', saveJournal);
   $('detailToggle').addEventListener('click', () => {
     const expanded = $('detailToggle').getAttribute('aria-expanded') === 'true';
     $('detailToggle').setAttribute('aria-expanded', String(!expanded));
     $('detailBody').hidden = expanded;
-    $('detailToggle').textContent = expanded ? '펼치기 +' : '접기 −';
+    $('detailToggle').textContent = expanded ? t('expand') : t('collapse');
   });
 
   document.querySelectorAll('.mood').forEach(btn => btn.addEventListener('click', () => recommendByMood(btn.dataset.mood)));
   $('categoryGrid').addEventListener('click', (e) => {
     const btn = e.target.closest('[data-category]');
     if (!btn) return;
-    const pool = quotes.filter(q => q.categories.includes(btn.dataset.category));
-    renderQuote(getRandomQuote(pool), btn.dataset.category);
+    const pool = quotes.filter(q => (q.categories || []).includes(btn.dataset.category));
+    renderQuote(getRandomQuote(pool), getDisplayName('category', btn.dataset.category));
   });
   $('savedList').addEventListener('click', (e) => {
     const item = e.target.closest('[data-id]');
     if (!item) return;
     const q = quotes.find(q => q.id === Number(item.dataset.id));
-    if (q) renderQuote(q, 'Saved');
+    if (q) renderQuote(q, t('savedTitle'));
   });
-  document.querySelector('.bottom-nav').addEventListener('click', (e) => {
+  document.addEventListener('click', (e) => {
     const btn = e.target.closest('button[data-target]');
     if (!btn) return;
     if (btn.dataset.target === 'top') window.scrollTo({ top: 0, behavior: 'smooth' });
